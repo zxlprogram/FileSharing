@@ -1,45 +1,92 @@
-# author:
+# File Sharing
+> Share files to any device with a single URL and QR code — no configuration needed.
+
+## Author
 z.x.l
-# contact me:
-if you want installer, please contact me: zhoudaniel02@gmail.com
-# version:
-1.1
-## abstract
-this project give a convinience way to share file to another device with python http server and cloudflare quick tunnel, user can choose a folder and copy a web link to share the localhost folder. this project also generate a QR code and let mobile to scan it.
-## project architecture
-the architecture shows in 程式架構圖.png at root folder, the project have a main exe files to use filesharing file,based on the project own library(jdk-25 but only basic env).
-fileSharing is also based on that, and it catch cloudflared's stdIO and server's stdIO and shows on frame, finally it generate QR code by zxing module. the server wrote by python and based on the python runtime env with only core part.
-fileSharing will open the server on localhost and get a random port between 8000~9000
-and uses HTTPS protocol and build a quick tunnel.
-## resource
-the logo is grab on google; this project used cloudflare 2025.11.1, jdk-25 and python 3.14.0
-## env
-it only work on Windows OS
 
-## license
+## Contact
+For installer requests or questions: zhoudaniel02@gmail.com  
+GitHub: https://github.com/zxlprogram
 
-### cloudflared
-This software downloads and uses cloudflared,
-developed by Cloudflare, Inc.
-Licensed under the Apache License, Version 2.0.
-https://github.com/cloudflare/cloudflared
+---
 
-### Java Runtime (JDK 25)
-This software includes Java SE Development Kit 25,
-developed by Oracle Corporation.
-Licensed under the GNU General Public License v2 with Classpath Exception (GPLv2+CE).
-https://openjdk.org/legal/gplv2+ce.html
+## Abstract
+File Sharing provides a convenient way to share a local folder with any device on the internet. The application starts a Python HTTP server on localhost, then creates a Cloudflare Quick Tunnel to expose it publicly. A URL and QR code are generated automatically so mobile devices can access the shared folder by scanning the code.
 
-### Python Runtime
-This software includes Python 3.14,
-developed by the Python Software Foundation.
-Licensed under the Python Software Foundation License Version 2.
-https://www.python.org/psf/license/
+## Requirements
+- Windows x64 (64-bit)
+- Internet connection (required for Cloudflare tunnel)
 
-### ZXing (QR Code)
-Licensed under the Apache License, Version 2.0.
-https://github.com/zxing/zxing
+## Installation
+1. Download `FileSharing_Installer.exe` from the releases page
+2. Run the installer and follow the on-screen steps
+3. Launch `檔案分享.exe` from the desktop shortcut or Start Menu
+
+## Usage
+1. Launch `檔案分享.exe`
+2. Click **Select Folder** and choose the folder you want to share
+3. The application will start the server and establish a Cloudflare tunnel
+4. Copy the generated URL or scan the QR code with your mobile device
+5. Close the application to stop sharing
+
+## Architecture
+The application consists of two main components:
+
+- **檔案分享.exe** — The main GUI, built with Java (Swing). It manages the server and tunnel processes, captures their standard output, displays logs in the interface, and generates the QR code using the ZXing library.
+- **server.py** — A lightweight Python HTTP server that serves the selected folder over localhost on a random port between 8000 and 9000.
+
+On startup, the application launches both processes, parses the tunnel output to extract the public URL, and generates a QR code using the ZXing module.
+
+See `程式架構圖.png` in the root folder for a visual overview of the architecture.
+
+## Limitations
+- Cloudflare Quick Tunnel has a maximum of 200 concurrent requests
+- The tunnel URL is randomly generated and changes every session
+- Quick Tunnel does not support Server-Sent Events (SSE)
+- Requires an active internet connection at all times
+- Not intended for production or high-traffic use
+
+## Version
+1.3
+
+## Known Issues / Bug Reports
+If you encounter any bugs, please contact: zhoudaniel02@gmail.com
+
+---
+
+## License
+
+### This Application
+This software is provided as-is for personal and non-commercial use.  
+Copyright (c) 2025 z.x.l
+
+### cloudflared 2025.11.1
+This software uses cloudflared, developed by Cloudflare, Inc.  
+Licensed under the Apache License, Version 2.0.  
+Source: https://github.com/cloudflare/cloudflared  
+License: https://www.apache.org/licenses/LICENSE-2.0
+
+### OpenJDK 21 (Eclipse Temurin)
+This software is distributed with a custom JRE built from Eclipse Temurin 21.  
+Copyright (c) Eclipse Foundation and contributors.  
+Licensed under the GNU General Public License v2 with Classpath Exception.  
+Source: https://adoptium.net  
+License: https://openjdk.org/legal/gplv2+ce.html
+
+### Python 3.14.0 (Embeddable)
+This software is distributed with the Python embeddable runtime.  
+Copyright (c) Python Software Foundation.  
+Licensed under the PSF License Agreement.  
+Source: https://www.python.org  
+License: https://www.python.org/psf/license/
+
+### ZXing 3.5.4
+This software uses the ZXing library for QR code generation.  
+Copyright (c) ZXing authors.  
+Licensed under the Apache License, Version 2.0.  
+Source: https://github.com/zxing/zxing  
+License: https://www.apache.org/licenses/LICENSE-2.0
 
 ### Logo
-The logo is sourced from Google Images.
-Please ensure the original creator's copyright is respected.
+The application logo is sourced from the internet.  
+If you are the original creator and have concerns, please contact: zhoudaniel02@gmail.com

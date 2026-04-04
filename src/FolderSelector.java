@@ -21,7 +21,7 @@ public class FolderSelector {
                     e.printStackTrace();
                     originalPath = "";
                 }
-                ProcessBuilder pb = new ProcessBuilder(originalPath+"\\tool\\jdk-25\\bin\\java.exe","-jar","fileSharing.jar", path);
+                ProcessBuilder pb = new ProcessBuilder(originalPath+"\\tool\\jdk-21.0.10\\bin\\java.exe","-jar","fileSharing.jar", path);
                 pb.inheritIO();
                 try {
                     pb.start();
