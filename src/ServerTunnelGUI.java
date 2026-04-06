@@ -15,12 +15,6 @@ public class ServerTunnelGUI {
     private Process tunnelProcess;
     private JTextArea tunnelOutput;
     public String path, originalPath,link;
-    public static void main(String[] args) {
-        ServerTunnelGUI gui = new ServerTunnelGUI();
-        if (args.length > 0 && args[0] != null && !args[0].isEmpty())
-            gui.path = args[0];
-        SwingUtilities.invokeLater(gui::createAndShowGUI);
-    }
     public ServerTunnelGUI() {
         path = System.getProperty("user.dir");
         try {
@@ -49,12 +43,12 @@ public class ServerTunnelGUI {
         }
         throw new RuntimeException("找不到可用的埠");
     }
-    private void createAndShowGUI() {
+    public void createAndShowGUI() {
         try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (Exception ignored) {}
         JFrame frame = new JFrame("Python Server + Cloudflare Tunnel Monitor");
-        frame.setIconImage(new ImageIcon(ServerTunnelGUI.class.getResource("/logo.png")).getImage());
+        frame.setIconImage(new ImageIcon(originalPath + "\\..\\resource\\logo.png").getImage());
         frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         frame.setSize(900, 600);
         frame.setLayout(new GridLayout(1, 2));
@@ -114,7 +108,7 @@ public class ServerTunnelGUI {
             }
         });
     }
-    public Process startProcess(String[] command, String dir, JTextArea outputArea) {
+    private Process startProcess(String[] command, String dir, JTextArea outputArea) {
         ProcessBuilder pb = new ProcessBuilder(command);
         pb.directory(new File(dir));
         pb.redirectErrorStream(true);
@@ -182,5 +176,24 @@ public class ServerTunnelGUI {
         } catch (Exception e) {
             JOptionPane.showMessageDialog(null, "QR 生成失敗: " + e.getMessage());
         }
+    }
+}
+class FolderSelector {
+    public static void main(String[] args) {
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception ignored) {}
+        SwingUtilities.invokeLater(() -> {
+            JFileChooser chooser = new JFileChooser();
+            chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+            chooser.setDialogTitle("choose the folder");
+            int result = chooser.showOpenDialog(null);
+            if (result == JFileChooser.APPROVE_OPTION) {
+                String path = chooser.getSelectedFile().getAbsolutePath();
+                ServerTunnelGUI gui=new ServerTunnelGUI();
+                gui.path=path;
+                gui.createAndShowGUI();
+            }
+        });
     }
 }
