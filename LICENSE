@@ -1,0 +1,79 @@
+================================================================================
+ File Sharing — Third-Party Software Notices
+================================================================================
+
+This application bundles or uses the following third-party software components.
+Their respective licenses are reproduced or referenced below.
+
+--------------------------------------------------------------------------------
+1. cloudflared 2025.11.1
+   Copyright (c) Cloudflare, Inc.
+   Licensed under the Apache License, Version 2.0.
+
+   Source:  https://github.com/cloudflare/cloudflared
+   License: https://www.apache.org/licenses/LICENSE-2.0
+
+   You may obtain a copy of the License at:
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+
+--------------------------------------------------------------------------------
+2. OpenJDK 21 — Eclipse Temurin
+   Copyright (c) Eclipse Foundation and contributors.
+   Licensed under the GNU General Public License version 2 with
+   the Classpath Exception (GPLv2+CE).
+
+   Source:  https://adoptium.net
+   License: https://openjdk.org/legal/gplv2+ce.html
+
+   The Classpath Exception allows this runtime to be distributed with
+   applications without requiring the application itself to be licensed
+   under the GPL, provided the runtime is not modified.
+
+   Full license texts are included in:
+       tool/jdk-21.0.10/legal/
+
+--------------------------------------------------------------------------------
+3. Python 3.14.0 (Embeddable Package)
+   Copyright (c) 2001-2025 Python Software Foundation.
+   All rights reserved.
+   Licensed under the PSF License Agreement.
+
+   Source:  https://www.python.org
+   License: https://www.python.org/psf/license/
+
+   Full license text is included in:
+       tool/python-3.14.0-embed-amd64/LICENSE.txt
+
+--------------------------------------------------------------------------------
+4. ZXing (Zebra Crossing) 3.5.4
+   Copyright (c) 2007 ZXing authors.
+   Licensed under the Apache License, Version 2.0.
+
+   Source:  https://github.com/zxing/zxing
+   License: https://www.apache.org/licenses/LICENSE-2.0
+
+   Bundled files:
+       core-3.5.4.jar
+       javase-3.5.4.jar
+
+--------------------------------------------------------------------------------
+
+Apache License, Version 2.0 (full text)
+----------------------------------------
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+================================================================================
