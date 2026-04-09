@@ -25,15 +25,16 @@ File Sharing provides a convenient way to share a local folder with any device o
 ## Usage
 1. Launch `檔案分享.exe`
 2. Click **Select Folder** and choose the folder you want to share
-3. A loading screen is displayed while the server and tunnel are initializing
-4. Once the tunnel is established, copy the generated URL or scan the QR code with your mobile device
-5. Close the application to stop sharing
+3. (Optional) Check **啟用密碼保護** and enter a password to restrict access. Visitors will be required to enter the password before they can browse any files
+4. A loading screen is displayed while the server and tunnel are initializing
+5. Once the tunnel is established, copy the generated URL or scan the QR code with your mobile device
+6. Close the application to stop sharing
 
 ## Architecture
 The application consists of two main components:
 
 - **檔案分享.exe** — The main GUI, built with Java (Swing). It manages the server and tunnel processes, captures their standard output, and generates the QR code using the ZXing library. The interface supports two display modes switchable at runtime.
-- **server.py** — A lightweight Python HTTP server that serves the selected folder over localhost on a random port between 8000 and 9000.
+- **server.py** — A lightweight Python HTTP server that serves the selected folder over localhost on a random port between 8000 and 8999. When password protection is enabled, the server issues a session token via cookie upon successful login and enforces a per-IP cooldown after each failed attempt.
 
 On startup, the application shows a loading screen while both processes initialize. Once the tunnel is ready, the interface switches automatically to the main view.
 
@@ -53,6 +54,11 @@ Provides a structured dashboard view:
 - **Left panel** — Shows the total visitor count and a file tree rooted at the shared folder. Selecting any file or folder displays how many times it has been accessed.
 - **Right panel** — Shows the current tunnel connection state (`connecting`, `connected`, or `network error`) as a scrollable text field.
 
+## Password Protection
+When password protection is enabled, the server serves a login page to any unauthenticated visitor. A session token is issued via an `HttpOnly` cookie upon successful login. The token remains valid for the duration of the current session and is invalidated when the application is closed.
+
+To prevent brute-force attempts, each failed login triggers a per-IP cooldown. During the cooldown period the login form is disabled and a countdown timer is shown.
+
 ## Limitations
 - Cloudflare Quick Tunnel has a maximum of 200 concurrent requests
 - The tunnel URL is randomly generated and changes every session
@@ -61,7 +67,7 @@ Provides a structured dashboard view:
 - Not intended for production or high-traffic use
 
 ## Version
-1.4
+1.5
 
 ## Known Issues / Bug Reports
 If you encounter any bugs, please contact: zhoudaniel02@gmail.com
@@ -72,7 +78,7 @@ If you encounter any bugs, please contact: zhoudaniel02@gmail.com
 
 ### This Application
 This software is provided as-is for personal and non-commercial use.  
-Copyright (c) 2025 z.x.l
+Copyright (c) 2025–2026 z.x.l
 
 ### cloudflared 2025.11.1
 This software uses cloudflared, developed by Cloudflare, Inc.  
@@ -100,6 +106,13 @@ Copyright (c) ZXing authors.
 Licensed under the Apache License, Version 2.0.  
 Source: https://github.com/zxing/zxing  
 License: https://www.apache.org/licenses/LICENSE-2.0
+
+### Tailwind CSS
+This software's server UI loads Tailwind CSS from a CDN at runtime.  
+Copyright (c) Tailwind Labs, Inc.  
+Licensed under the MIT License.  
+Source: https://tailwindcss.com  
+License: https://github.com/tailwindlabs/tailwindcss/blob/master/LICENSE
 
 ### Logo
 The application logo is sourced from the internet.  

@@ -3,6 +3,9 @@ import java.awt.*;
 import java.awt.datatransfer.*;
 import java.io.*;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import com.google.zxing.*;
@@ -26,11 +29,12 @@ public class ServerTunnelGUI {
     public JFrame frame;
     public String path, originalPath, link;
 
-    // === 新增：mode 相關 ===
+    public boolean usePassword = false;
+    public String password = null;
+
     public enum MODE { UI, CONSOLE }
     public MODE currentMode;
 
-    // === 新增：UI_Mode 元件 ===
     private JTextField tunnelStateField;
     private JLabel totalVisitorLabel;
     private JTree fileTree;
@@ -39,12 +43,9 @@ public class ServerTunnelGUI {
     private JPanel uiServerCenter;
     private JPanel uiTunnelCenter;
 
-    // === 新增：toolList 按鈕 ===
     private JPanel toolList;
     private JButton switchModeButton;
 
-
-    // === 新增：檔案訪問次數記錄（簡單以路徑為key）===
     private java.util.Map<String, Integer> fileVisitMap = new java.util.HashMap<>();
 
     public ServerTunnelGUI() {
@@ -78,7 +79,6 @@ public class ServerTunnelGUI {
         throw new RuntimeException("找不到可用的埠");
     }
 
-    // === 新增：更新 tunnelStateField 顯示 ===
     private void updateTunnelStateField() {
         if (tunnelStateField == null) return;
         SwingUtilities.invokeLater(() -> {
@@ -98,22 +98,23 @@ public class ServerTunnelGUI {
                     tunnelStateField.setForeground(Color.RED);
                     break;
                 case req_ERROR:
-                	tunnelStateField.setText("tunnel建立的頻率過高，請稍後再試");
-                	tunnelStateField.setForeground(Color.RED);
+                    tunnelStateField.setText("tunnel建立的頻率過高，請稍後再試");
+                    tunnelStateField.setForeground(Color.RED);
+                    break;
             }
         });
     }
 
-    // === 新增：更新 totalVisitor 標籤 ===
     private void updateTotalVisitorLabel() {
         if (totalVisitorLabel == null) return;
         SwingUtilities.invokeLater(() -> totalVisitorLabel.setText("總訪客數: " + totalVisitor));
     }
 
     private javax.swing.tree.DefaultMutableTreeNode buildFileTreeNode(File file) {
-        javax.swing.tree.DefaultMutableTreeNode node = new javax.swing.tree.DefaultMutableTreeNode(file.getName().isEmpty() ? file.getAbsolutePath() : file.getName()) {
-            public File file = null;
-        };
+        javax.swing.tree.DefaultMutableTreeNode node =
+            new javax.swing.tree.DefaultMutableTreeNode(
+                file.getName().isEmpty() ? file.getAbsolutePath() : file.getName()
+            );
         node.setUserObject(file);
         if (file.isDirectory()) {
             File[] children = file.listFiles();
@@ -136,12 +137,15 @@ public class ServerTunnelGUI {
         JTree tree = new JTree(root);
         tree.setCellRenderer(new javax.swing.tree.DefaultTreeCellRenderer() {
             @Override
-            public Component getTreeCellRendererComponent(JTree tree, Object value, boolean sel, boolean expanded, boolean leaf, int row, boolean hasFocus) {
+            public Component getTreeCellRendererComponent(JTree tree, Object value,
+                    boolean sel, boolean expanded, boolean leaf, int row, boolean hasFocus) {
                 super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
                 if (value instanceof javax.swing.tree.DefaultMutableTreeNode) {
                     Object uo = ((javax.swing.tree.DefaultMutableTreeNode) value).getUserObject();
                     if (uo instanceof File) {
-                        setText(((File) uo).getName().isEmpty() ? ((File) uo).getAbsolutePath() : ((File) uo).getName());
+                        setText(((File) uo).getName().isEmpty()
+                            ? ((File) uo).getAbsolutePath()
+                            : ((File) uo).getName());
                     }
                 }
                 return this;
@@ -161,6 +165,7 @@ public class ServerTunnelGUI {
         });
         return tree;
     }
+
     private void startMode() {
         SwingUtilities.invokeLater(() -> {
             frame.remove(loadPanel);
@@ -169,9 +174,9 @@ public class ServerTunnelGUI {
             frame.repaint();
         });
     }
-    // === 新增：UI_Mode 實作 ===
+
     private void UI_Mode() {
-    	startMode();
+        startMode();
         currentMode = MODE.UI;
 
         // --- tunnelPanel ---
@@ -186,10 +191,17 @@ public class ServerTunnelGUI {
         tunnelStateScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         tunnelStateScroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER);
         uiTunnelCenter.add(tunnelStateScroll, BorderLayout.CENTER);
+
+        JLabel pwLabel = new JLabel(usePassword
+            ? "🔒 密碼保護：已啟用"
+            : "🔓 密碼保護：未啟用");
+        pwLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        pwLabel.setForeground(usePassword ? new Color(0, 120, 0) : Color.GRAY);
+        uiTunnelCenter.add(pwLabel, BorderLayout.SOUTH);
+
         tunnelPanel.add(uiTunnelCenter, BorderLayout.CENTER);
         updateTunnelStateField();
 
-        // --- serverPanel ---
         serverPanel.removeAll();
         totalVisitorLabel = new JLabel("總訪客數: " + totalVisitor);
         totalVisitorLabel.setHorizontalAlignment(SwingConstants.CENTER);
@@ -213,7 +225,6 @@ public class ServerTunnelGUI {
         tunnelPanel.repaint();
     }
 
-    // === 原有：consoleMode（保持原樣，補充 currentMode 切換）===
     private void consoleMode() {
         currentMode = MODE.CONSOLE;
 
@@ -222,8 +233,7 @@ public class ServerTunnelGUI {
 
         serverPanel.add(serverScroll, BorderLayout.CENTER);
         tunnelPanel.add(tunnelScroll, BorderLayout.CENTER);
-        // copyButton 已在 toolList，tunnelPanel NORTH 不重複加
-        tunnelPanel.add(new JPanel(), BorderLayout.NORTH); // 保持 BorderLayout 結構對稱
+        tunnelPanel.add(new JPanel(), BorderLayout.NORTH);
 
         serverPanel.revalidate();
         serverPanel.repaint();
@@ -231,7 +241,6 @@ public class ServerTunnelGUI {
         tunnelPanel.repaint();
     }
 
-    // === 新增：switchMode ===
     private void switchMode() {
         if (currentMode == MODE.CONSOLE) {
             UI_Mode();
@@ -250,9 +259,8 @@ public class ServerTunnelGUI {
         frame.setIconImage(new ImageIcon(originalPath + "\\..\\resource\\logo.png").getImage());
         frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         frame.setSize(900, 600);
-        frame.setLayout(new BorderLayout()); // 改為 BorderLayout 以容納 toolList(NORTH)
+        frame.setLayout(new BorderLayout());
 
-        // --- 中央區域：左右兩欄 ---
         centerPanel = new JPanel(new GridLayout(1, 2));
 
         serverOutput = new JTextArea();
@@ -279,9 +287,7 @@ public class ServerTunnelGUI {
         centerPanel.add(serverPanel);
         centerPanel.add(tunnelPanel);
 
-        // --- 新增：toolList (NORTH) ---
         toolList = new JPanel(new FlowLayout(FlowLayout.LEFT));
-
         toolList.add(copyButton);
 
         switchModeButton = new JButton("切換至 UI 模式");
@@ -293,30 +299,32 @@ public class ServerTunnelGUI {
         frame.add(toolList, BorderLayout.NORTH);
         frame.setVisible(true);
 
-        // --- 初始化 mode ---
         currentMode = MODE.CONSOLE;
         loadPanel = new JPanel(new BorderLayout());
-        JTextField loadTextField=new JTextField("loading...");
+        JTextField loadTextField = new JTextField("loading...");
         loadTextField.setFont(new Font("Monospaced", Font.BOLD, 24));
         loadTextField.setEditable(false);
         loadTextField.setHorizontalAlignment(JTextField.CENTER);
-        loadPanel.add(loadTextField,BorderLayout.CENTER);
+        loadPanel.add(loadTextField, BorderLayout.CENTER);
         frame.add(loadPanel, BorderLayout.CENTER);
         frame.revalidate();
         frame.repaint();
+
         SwingUtilities.invokeLater(() -> {
             UI_Mode();
             switchModeButton.setText("切換至 Console 模式");
         });
-        pythonProcess = startProcess(
-                new String[]{
-                        originalPath + "\\tool\\python-3.14.0-embed-amd64\\python.exe",
-                        originalPath + "\\tool\\server.py",
-                        Integer.toString(port)
-                },
-                path,
-                serverOutput
-        );
+
+        List<String> pythonCmd = new ArrayList<>(Arrays.asList(
+            originalPath + "\\tool\\python-3.14.0-embed-amd64\\python.exe",
+            originalPath + "\\tool\\server.py",
+            Integer.toString(port),
+            Boolean.toString(usePassword)   // "true" 或 "false"
+        ));
+        if (usePassword && password != null && !password.isEmpty()) {
+            pythonCmd.add(password);
+        }
+        pythonProcess = startProcess(pythonCmd.toArray(new String[0]), path, serverOutput);
 
         new Thread(() -> {
             try { Thread.sleep(2000); } catch (InterruptedException ignored) {}
@@ -337,6 +345,7 @@ public class ServerTunnelGUI {
         tunnelOutput.append("[FILESHARING] [" + LocalDateTime.now() + "]\n");
         tunnelOutput.append("[FILESHARING] the tunnel path to folder: " + path + "\n");
         tunnelOutput.append("[FILESHARING] fileSharing is using the port " + port + "\n");
+        tunnelOutput.append("[FILESHARING] password protection: " + (usePassword ? "enabled" : "disabled") + "\n");
 
         frame.addWindowListener(new java.awt.event.WindowAdapter() {
             @Override
@@ -347,7 +356,7 @@ public class ServerTunnelGUI {
         });
     }
 
-    public enum STATE { LOADING, SUCCESS, net_ERROR,req_ERROR }
+    public enum STATE { LOADING, SUCCESS, net_ERROR, req_ERROR }
     public STATE tunnelState;
     int totalVisitor = 0;
 
@@ -368,19 +377,18 @@ public class ServerTunnelGUI {
                         if (line.indexOf(".trycloudflare.com") != -1) {
                             link = line.substring(line.indexOf("https://"), line.indexOf(".trycloudflare.com") + 18);
                             tunnelState = STATE.SUCCESS;
-                            updateTunnelStateField(); // 新增接口
+                            updateTunnelStateField();
                         }
                         if (line.equals("failed to request quick Tunnel: Post \"https://api.trycloudflare.com/tunnel\": dial tcp: lookup api.trycloudflare.com: no such host")) {
                             tunnelState = STATE.net_ERROR;
                             updateTunnelStateField();
                         }
                         if (line.equals("failed to unmarshal quick Tunnel: invalid character 'e' looking for beginning of value")) {
-                        	tunnelState = STATE.req_ERROR;
-                        	updateTunnelStateField();
+                            tunnelState = STATE.req_ERROR;
+                            updateTunnelStateField();
                         }
-                        String[] code;
                         try {
-                            code = line.split(" ");
+                            String[] code = line.split(" ");
                             if (code[code.length - 2].equals("404")) {
                                 totalVisitor += 1;
                                 updateTotalVisitorLabel();
@@ -456,21 +464,112 @@ public class ServerTunnelGUI {
 }
 
 class FolderSelector {
+    public JFrame frame;
+
     public static void main(String[] args) {
         try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (Exception ignored) {}
+
         SwingUtilities.invokeLater(() -> {
+            JDialog dialog = new JDialog((Frame) null, "選擇分享資料夾", true);
+            dialog.setSize(650, 500);
+            dialog.setLocationRelativeTo(null);
+            dialog.setLayout(new BorderLayout());
+            dialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+            dialog.addWindowListener(new java.awt.event.WindowAdapter() {
+                @Override
+                public void windowClosing(java.awt.event.WindowEvent e) {
+                    dialog.dispose();
+                    System.exit(0);
+                }
+            });
             JFileChooser chooser = new JFileChooser();
             chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-            chooser.setDialogTitle("choose the folder");
-            int result = chooser.showOpenDialog(null);
-            if (result == JFileChooser.APPROVE_OPTION) {
-                String path = chooser.getSelectedFile().getAbsolutePath();
+            chooser.setDialogTitle("選擇要分享的資料夾");
+            chooser.setControlButtonsAreShown(false);
+            dialog.add(chooser, BorderLayout.CENTER);
+
+            // === SOUTH：密碼保護選項 + 確認按鈕 ===
+            JPanel southPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 8));
+
+            JCheckBox passwordCheckBox = new JCheckBox("啟用密碼保護");
+
+            JLabel passwordLabel = new JLabel("密碼：");
+            passwordLabel.setVisible(false);
+
+            JTextField passwordField = new JTextField(16);
+            passwordField.setToolTipText("請輸入密碼");
+            passwordField.setVisible(false);
+
+            // 勾選/取消 勾選時顯示或隱藏密碼欄位
+            passwordCheckBox.addActionListener(e -> {
+                boolean checked = passwordCheckBox.isSelected();
+                passwordLabel.setVisible(checked);
+                passwordField.setVisible(checked);
+                southPanel.revalidate();
+                southPanel.repaint();
+            });
+
+            // 確認按鈕
+            JButton confirmButton = new JButton("開啟");
+            confirmButton.addActionListener(e -> {
+                File selected = chooser.getSelectedFile();
+                // 若使用者未點選任何項目，取用目前瀏覽的目錄
+                if (selected == null) {
+                    selected = chooser.getCurrentDirectory();
+                }
+                if (selected == null) {
+                    JOptionPane.showMessageDialog(dialog, "請先選擇一個資料夾。");
+                    return;
+                }
+
+                boolean usePassword = passwordCheckBox.isSelected();
+                String password = usePassword ? passwordField.getText().trim() : null;
+
+                // 啟用密碼但欄位空白時提示
+                if (usePassword && (password == null || password.isEmpty())) {
+                    int confirm = JOptionPane.showConfirmDialog(
+                        dialog,
+                        "密碼欄位為空，確定要以空字串作為密碼嗎？",
+                        "密碼確認",
+                        JOptionPane.YES_NO_OPTION
+                    );
+                    if (confirm != JOptionPane.YES_OPTION) return;
+                }
+
+                dialog.dispose();
+
+                String finalPath = selected.getAbsolutePath();
                 ServerTunnelGUI gui = new ServerTunnelGUI();
-                gui.path = path;
+                gui.path = finalPath;
+                gui.usePassword = usePassword;
+                gui.password = password;
                 gui.createAndShowGUI();
-            }
+            });
+
+            // 取消按鈕
+            JButton cancelButton = new JButton("取消");
+            cancelButton.addActionListener(e -> {
+                dialog.dispose();
+                System.exit(0);
+            });
+
+            southPanel.add(passwordCheckBox);
+            southPanel.add(passwordLabel);
+            southPanel.add(passwordField);
+            southPanel.add(Box.createHorizontalStrut(30));
+            southPanel.add(confirmButton);
+            southPanel.add(cancelButton);
+
+            // 加一條分隔線在 SOUTH 上方
+            JPanel southWrapper = new JPanel(new BorderLayout());
+            southWrapper.add(new JSeparator(), BorderLayout.NORTH);
+            southWrapper.add(southPanel, BorderLayout.CENTER);
+
+            dialog.add(southWrapper, BorderLayout.SOUTH);
+            
+            dialog.setVisible(true);
         });
     }
 }
