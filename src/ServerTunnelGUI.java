@@ -16,7 +16,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import com.google.zxing.*;
 import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
@@ -24,6 +25,7 @@ import com.google.zxing.qrcode.QRCodeWriter;
 
 public class ServerTunnelGUI {
     private Random r = new Random();
+    private String rateLimitMessage = null;
     private Process pythonProcess;
     private Process tunnelProcess;
     private JTextArea serverOutput;
@@ -107,7 +109,7 @@ public class ServerTunnelGUI {
                     tunnelStateField.setForeground(Color.RED);
                     break;
                 case req_ERROR:
-                    tunnelStateField.setText("tunnel建立的頻率過高，請稍後再試");
+                    tunnelStateField.setText(rateLimitMessage != null ? rateLimitMessage : "tunnel建立的頻率過高，請稍後再試");
                     tunnelStateField.setForeground(Color.RED);
                     break;
             }
@@ -405,10 +407,46 @@ public class ServerTunnelGUI {
                             tunnelState = STATE.net_ERROR;
                             updateTunnelStateField();
                         }
-                        if (line.equals("failed to unmarshal quick Tunnel: invalid character 'e' looking for beginning of value")) {
+                        if (line.contains("status_code=\"429 Too Many Requests\"")) {
                             tunnelState = STATE.req_ERROR;
-                            updateTunnelStateField();
-                        }
+                            new Thread(() -> {
+                                for (int attempt = 0; attempt < 10; attempt++) {
+                                    try {
+                                        Process curlProcess = new ProcessBuilder(
+                                            "curl.exe", "-s", "-o", "NUL", "-D", "-",
+                                            "-X", "POST", "https://api.trycloudflare.com/tunnel"
+                                        ).start();
+
+                                        BufferedReader curlReader = new BufferedReader(
+                                            new InputStreamReader(curlProcess.getInputStream())
+                                        );
+                                        String curlLine;
+                                        boolean got429 = false;
+                                        while ((curlLine = curlReader.readLine()) != null) {
+                                            if (curlLine.contains("429")) got429 = true;
+                                            if (got429 && curlLine.toLowerCase().startsWith("retry-after:")) {
+                                                int seconds = Integer.parseInt(curlLine.split(":")[1].trim());
+                                                LocalTime unblockTime = LocalTime.now().plusSeconds(seconds);
+                                                String formatted = unblockTime.format(DateTimeFormatter.ofPattern("HH:mm:ss"));
+                                                rateLimitMessage = "tunnel建立的頻率過高，請在 " + formatted + " 再試";
+                                                break;
+                                            }
+                                        }
+                                        if (rateLimitMessage != null) break; // 成功拿到就停
+                                        Thread.sleep(500); // 沒拿到就等 0.5 秒再試
+                                    } catch (Exception ex) {
+                                        // 繼續重試
+                                    }
+                                }
+                                if (rateLimitMessage == null) {
+                                    rateLimitMessage = "tunnel建立的頻率過高，請稍後再試";
+                                }
+                                while (tunnelStateField == null) {
+                                    try { Thread.sleep(100); } catch (InterruptedException ignored) {}
+                                }
+                                updateTunnelStateField();
+                            }).start();
+                        }          
                         try {
                             String[] code = line.split(" ");
                             if (code[code.length - 2].equals("404")) {
