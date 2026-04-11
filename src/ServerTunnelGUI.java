@@ -2,12 +2,21 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.datatransfer.*;
 import java.io.*;
+import java.nio.file.FileVisitOption;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+
 import com.google.zxing.*;
 import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
@@ -110,76 +119,49 @@ public class ServerTunnelGUI {
         SwingUtilities.invokeLater(() -> totalVisitorLabel.setText("總訪客數: " + totalVisitor));
     }
 
-    private javax.swing.tree.DefaultMutableTreeNode buildFileTreeNode(File file) {
-        javax.swing.tree.DefaultMutableTreeNode node =
-            new javax.swing.tree.DefaultMutableTreeNode(
-                file.getName().isEmpty() ? file.getAbsolutePath() : file.getName()
-            );
-        node.setUserObject(file);
-        if (file.isDirectory()) {
-            File[] children = file.listFiles();
-            if (children != null) {
-                java.util.Arrays.sort(children, (a, b) -> {
-                    if (a.isDirectory() && !b.isDirectory()) return -1;
-                    if (!a.isDirectory() && b.isDirectory()) return 1;
-                    return a.getName().compareTo(b.getName());
-                });
-                for (File child : children) {
-                    node.add(buildFileTreeNode(child));
-                }
+    // 邊建邊插入節點，讓 JTree 慢慢顯示
+    private void buildFileTreeNodeAsync(File file, javax.swing.tree.DefaultMutableTreeNode parentNode, JTree tree) {
+        File[] children = file.listFiles();
+        if (children == null) return;
+
+        java.util.Arrays.sort(children, (a, b) -> {
+            if (a.isDirectory() && !b.isDirectory()) return -1;
+            if (!a.isDirectory() && b.isDirectory()) return 1;
+            return a.getName().compareTo(b.getName());
+        });
+
+        for (File child : children) {
+            javax.swing.tree.DefaultMutableTreeNode childNode =
+                new javax.swing.tree.DefaultMutableTreeNode(
+                    child.getName().isEmpty() ? child.getAbsolutePath() : child.getName()
+                );
+            childNode.setUserObject(child);
+
+            // 插入節點並通知 UI 更新
+            SwingUtilities.invokeLater(() -> {
+                ((javax.swing.tree.DefaultTreeModel) tree.getModel())
+                    .insertNodeInto(childNode, parentNode, parentNode.getChildCount());
+            });
+
+            // 遞迴處理子資料夾
+            if (child.isDirectory()) {
+                buildFileTreeNodeAsync(child, childNode, tree);
             }
         }
-        return node;
-    }
-
-    private JTree buildFileTree() {
-        javax.swing.tree.DefaultMutableTreeNode root = buildFileTreeNode(new File(path));
-        JTree tree = new JTree(root);
-        tree.setCellRenderer(new javax.swing.tree.DefaultTreeCellRenderer() {
-            @Override
-            public Component getTreeCellRendererComponent(JTree tree, Object value,
-                    boolean sel, boolean expanded, boolean leaf, int row, boolean hasFocus) {
-                super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
-                if (value instanceof javax.swing.tree.DefaultMutableTreeNode) {
-                    Object uo = ((javax.swing.tree.DefaultMutableTreeNode) value).getUserObject();
-                    if (uo instanceof File) {
-                        setText(((File) uo).getName().isEmpty()
-                            ? ((File) uo).getAbsolutePath()
-                            : ((File) uo).getName());
-                    }
-                }
-                return this;
-            }
-        });
-        tree.addTreeSelectionListener(e -> {
-            javax.swing.tree.DefaultMutableTreeNode node =
-                (javax.swing.tree.DefaultMutableTreeNode) tree.getLastSelectedPathComponent();
-            if (node == null || fileVisitLabel == null) return;
-            Object uo = node.getUserObject();
-            if (uo instanceof File) {
-                File selected = (File) uo;
-                String absPath = selected.getAbsolutePath();
-                int count = fileVisitMap.getOrDefault(absPath, 0);
-                fileVisitLabel.setText("「" + selected.getName() + "」被訪問次數: " + count);
-            }
-        });
-        return tree;
     }
 
     private void startMode() {
-        SwingUtilities.invokeLater(() -> {
-            frame.remove(loadPanel);
-            frame.add(centerPanel, BorderLayout.CENTER);
-            frame.revalidate();
-            frame.repaint();
-        });
+        frame.remove(loadPanel);
+        frame.add(centerPanel, BorderLayout.CENTER);
+        frame.revalidate();
+        frame.repaint();
     }
 
     private void UI_Mode() {
         startMode();
         currentMode = MODE.UI;
 
-        // --- tunnelPanel ---
+        // Tunnel 面板
         tunnelPanel.removeAll();
         tunnelStateField = new JTextField("未啟動");
         tunnelStateField.setEditable(false);
@@ -202,16 +184,52 @@ public class ServerTunnelGUI {
         tunnelPanel.add(uiTunnelCenter, BorderLayout.CENTER);
         updateTunnelStateField();
 
+        // Server 面板
         serverPanel.removeAll();
         totalVisitorLabel = new JLabel("總訪客數: " + totalVisitor);
         totalVisitorLabel.setHorizontalAlignment(SwingConstants.CENTER);
         totalVisitorLabel.setFont(new Font("Monospaced", Font.BOLD, 16));
 
-        fileTree = buildFileTree();
-        fileTreeScroll = new JScrollPane(fileTree);
-
         fileVisitLabel = new JLabel("請選擇檔案或資料夾以查看訪問次數");
         fileVisitLabel.setHorizontalAlignment(SwingConstants.CENTER);
+
+        // 先建空的根節點和樹
+        javax.swing.tree.DefaultMutableTreeNode root =
+            new javax.swing.tree.DefaultMutableTreeNode(
+                path.isEmpty() ? path : new File(path).getName().isEmpty() ? path : new File(path).getName()
+            );
+        root.setUserObject(new File(path));
+
+        fileTree = new JTree(root);
+        fileTree.setCellRenderer(new javax.swing.tree.DefaultTreeCellRenderer() {
+            @Override
+            public Component getTreeCellRendererComponent(JTree tree, Object value,
+                    boolean sel, boolean expanded, boolean leaf, int row, boolean hasFocus) {
+                super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
+                if (value instanceof javax.swing.tree.DefaultMutableTreeNode) {
+                    Object uo = ((javax.swing.tree.DefaultMutableTreeNode) value).getUserObject();
+                    if (uo instanceof File) {
+                        File f = (File) uo;
+                        setText(f.getName().isEmpty() ? f.getAbsolutePath() : f.getName());
+                    }
+                }
+                return this;
+            }
+        });
+        fileTree.addTreeSelectionListener(e -> {
+            javax.swing.tree.DefaultMutableTreeNode node =
+                (javax.swing.tree.DefaultMutableTreeNode) fileTree.getLastSelectedPathComponent();
+            if (node == null || fileVisitLabel == null) return;
+            Object uo = node.getUserObject();
+            if (uo instanceof File) {
+                File selected = (File) uo;
+                String absPath = selected.getAbsolutePath();
+                int count = fileVisitMap.getOrDefault(absPath, 0);
+                fileVisitLabel.setText("「" + selected.getName() + "」被訪問次數: " + count);
+            }
+        });
+
+        fileTreeScroll = new JScrollPane(fileTree);
 
         uiServerCenter = new JPanel(new BorderLayout());
         uiServerCenter.add(totalVisitorLabel, BorderLayout.NORTH);
@@ -223,6 +241,10 @@ public class ServerTunnelGUI {
         serverPanel.repaint();
         tunnelPanel.revalidate();
         tunnelPanel.repaint();
+
+        // 背景慢慢填入節點
+        JTree treeRef = fileTree;
+        new Thread(() -> buildFileTreeNodeAsync(new File(path), root, treeRef)).start();
     }
 
     private void consoleMode() {
@@ -319,7 +341,7 @@ public class ServerTunnelGUI {
             originalPath + "\\tool\\python-3.14.0-embed-amd64\\python.exe",
             originalPath + "\\tool\\server.py",
             Integer.toString(port),
-            Boolean.toString(usePassword)   // "true" 或 "false"
+            Boolean.toString(usePassword)
         ));
         if (usePassword && password != null && !password.isEmpty()) {
             pythonCmd.add(password);
@@ -464,13 +486,36 @@ public class ServerTunnelGUI {
 }
 
 class FolderSelector {
-    public JFrame frame;
+    public static long getFolderSize(String folderPath) throws IOException {
+        AtomicLong total = new AtomicLong(0);
+
+        Files.walkFileTree(Paths.get(folderPath),
+            java.util.EnumSet.noneOf(FileVisitOption.class),
+            Integer.MAX_VALUE,
+            new SimpleFileVisitor<Path>() {
+
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                    if (!attrs.isSymbolicLink()) {
+                        total.addAndGet(attrs.size());
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFileFailed(Path file, IOException exc) {
+                    System.err.println("跳過：" + file);
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+
+        return total.get() / 1024;
+    }
 
     public static void main(String[] args) {
         try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (Exception ignored) {}
-
         SwingUtilities.invokeLater(() -> {
             JDialog dialog = new JDialog((Frame) null, "選擇分享資料夾", true);
             dialog.setSize(650, 500);
@@ -490,7 +535,6 @@ class FolderSelector {
             chooser.setControlButtonsAreShown(false);
             dialog.add(chooser, BorderLayout.CENTER);
 
-            // === SOUTH：密碼保護選項 + 確認按鈕 ===
             JPanel southPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 8));
 
             JCheckBox passwordCheckBox = new JCheckBox("啟用密碼保護");
@@ -502,7 +546,6 @@ class FolderSelector {
             passwordField.setToolTipText("請輸入密碼");
             passwordField.setVisible(false);
 
-            // 勾選/取消 勾選時顯示或隱藏密碼欄位
             passwordCheckBox.addActionListener(e -> {
                 boolean checked = passwordCheckBox.isSelected();
                 passwordLabel.setVisible(checked);
@@ -511,11 +554,9 @@ class FolderSelector {
                 southPanel.repaint();
             });
 
-            // 確認按鈕
             JButton confirmButton = new JButton("開啟");
             confirmButton.addActionListener(e -> {
                 File selected = chooser.getSelectedFile();
-                // 若使用者未點選任何項目，取用目前瀏覽的目錄
                 if (selected == null) {
                     selected = chooser.getCurrentDirectory();
                 }
@@ -527,7 +568,6 @@ class FolderSelector {
                 boolean usePassword = passwordCheckBox.isSelected();
                 String password = usePassword ? passwordField.getText().trim() : null;
 
-                // 啟用密碼但欄位空白時提示
                 if (usePassword && (password == null || password.isEmpty())) {
                     int confirm = JOptionPane.showConfirmDialog(
                         dialog,
@@ -548,7 +588,6 @@ class FolderSelector {
                 gui.createAndShowGUI();
             });
 
-            // 取消按鈕
             JButton cancelButton = new JButton("取消");
             cancelButton.addActionListener(e -> {
                 dialog.dispose();
@@ -562,13 +601,11 @@ class FolderSelector {
             southPanel.add(confirmButton);
             southPanel.add(cancelButton);
 
-            // 加一條分隔線在 SOUTH 上方
             JPanel southWrapper = new JPanel(new BorderLayout());
             southWrapper.add(new JSeparator(), BorderLayout.NORTH);
             southWrapper.add(southPanel, BorderLayout.CENTER);
 
             dialog.add(southWrapper, BorderLayout.SOUTH);
-            
             dialog.setVisible(true);
         });
     }
