@@ -121,7 +121,6 @@ public class ServerTunnelGUI {
         SwingUtilities.invokeLater(() -> totalVisitorLabel.setText("總訪客數: " + totalVisitor));
     }
 
-    // 邊建邊插入節點，讓 JTree 慢慢顯示
     private void buildFileTreeNodeAsync(File file, javax.swing.tree.DefaultMutableTreeNode parentNode, JTree tree) {
         File[] children = file.listFiles();
         if (children == null) return;
@@ -153,6 +152,43 @@ public class ServerTunnelGUI {
     }
 
     private void startMode() {
+        javax.swing.tree.DefaultMutableTreeNode root =
+                new javax.swing.tree.DefaultMutableTreeNode(
+                    path.isEmpty() ? path : new File(path).getName().isEmpty() ? path : new File(path).getName()
+                );
+            root.setUserObject(new File(path));
+
+            fileTree = new JTree(root);
+            fileTree.setCellRenderer(new javax.swing.tree.DefaultTreeCellRenderer() {
+                @Override
+                public Component getTreeCellRendererComponent(JTree tree, Object value,
+                        boolean sel, boolean expanded, boolean leaf, int row, boolean hasFocus) {
+                    super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
+                    if (value instanceof javax.swing.tree.DefaultMutableTreeNode) {
+                        Object uo = ((javax.swing.tree.DefaultMutableTreeNode) value).getUserObject();
+                        if (uo instanceof File) {
+                            File f = (File) uo;
+                            setText(f.getName().isEmpty() ? f.getAbsolutePath() : f.getName());
+                        }
+                    }
+                    return this;
+                }
+            });
+            fileTree.addTreeSelectionListener(e -> {
+                javax.swing.tree.DefaultMutableTreeNode node =
+                    (javax.swing.tree.DefaultMutableTreeNode) fileTree.getLastSelectedPathComponent();
+                if (node == null || fileVisitLabel == null) return;
+                Object uo = node.getUserObject();
+                if (uo instanceof File) {
+                    File selected = (File) uo;
+                    String absPath = selected.getAbsolutePath();
+                    int count = fileVisitMap.getOrDefault(absPath, 0);
+                    fileVisitLabel.setText("「" + selected.getName() + "」被訪問次數: " + count);
+                }
+            });
+            JTree treeRef = fileTree;
+            new Thread(() -> buildFileTreeNodeAsync(new File(path), root, treeRef)).start();
+            
         frame.remove(loadPanel);
         frame.add(centerPanel, BorderLayout.CENTER);
         frame.revalidate();
@@ -160,7 +196,6 @@ public class ServerTunnelGUI {
     }
 
     private void UI_Mode() {
-        startMode();
         currentMode = MODE.UI;
 
         // Tunnel 面板
@@ -195,41 +230,6 @@ public class ServerTunnelGUI {
         fileVisitLabel = new JLabel("請選擇檔案或資料夾以查看訪問次數");
         fileVisitLabel.setHorizontalAlignment(SwingConstants.CENTER);
 
-        // 先建空的根節點和樹
-        javax.swing.tree.DefaultMutableTreeNode root =
-            new javax.swing.tree.DefaultMutableTreeNode(
-                path.isEmpty() ? path : new File(path).getName().isEmpty() ? path : new File(path).getName()
-            );
-        root.setUserObject(new File(path));
-
-        fileTree = new JTree(root);
-        fileTree.setCellRenderer(new javax.swing.tree.DefaultTreeCellRenderer() {
-            @Override
-            public Component getTreeCellRendererComponent(JTree tree, Object value,
-                    boolean sel, boolean expanded, boolean leaf, int row, boolean hasFocus) {
-                super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
-                if (value instanceof javax.swing.tree.DefaultMutableTreeNode) {
-                    Object uo = ((javax.swing.tree.DefaultMutableTreeNode) value).getUserObject();
-                    if (uo instanceof File) {
-                        File f = (File) uo;
-                        setText(f.getName().isEmpty() ? f.getAbsolutePath() : f.getName());
-                    }
-                }
-                return this;
-            }
-        });
-        fileTree.addTreeSelectionListener(e -> {
-            javax.swing.tree.DefaultMutableTreeNode node =
-                (javax.swing.tree.DefaultMutableTreeNode) fileTree.getLastSelectedPathComponent();
-            if (node == null || fileVisitLabel == null) return;
-            Object uo = node.getUserObject();
-            if (uo instanceof File) {
-                File selected = (File) uo;
-                String absPath = selected.getAbsolutePath();
-                int count = fileVisitMap.getOrDefault(absPath, 0);
-                fileVisitLabel.setText("「" + selected.getName() + "」被訪問次數: " + count);
-            }
-        });
 
         fileTreeScroll = new JScrollPane(fileTree);
 
@@ -243,10 +243,6 @@ public class ServerTunnelGUI {
         serverPanel.repaint();
         tunnelPanel.revalidate();
         tunnelPanel.repaint();
-
-        // 背景慢慢填入節點
-        JTree treeRef = fileTree;
-        new Thread(() -> buildFileTreeNodeAsync(new File(path), root, treeRef)).start();
     }
 
     private void consoleMode() {
@@ -335,6 +331,7 @@ public class ServerTunnelGUI {
         frame.repaint();
 
         SwingUtilities.invokeLater(() -> {
+        	startMode();
             UI_Mode();
             switchModeButton.setText("切換至 Console 模式");
         });
