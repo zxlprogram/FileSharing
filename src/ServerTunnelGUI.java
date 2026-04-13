@@ -1,4 +1,5 @@
 import javax.swing.*;
+import javax.swing.filechooser.FileSystemView;
 import java.awt.*;
 import java.awt.datatransfer.*;
 import java.io.*;
@@ -22,7 +23,6 @@ import com.google.zxing.*;
 import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
-
 public class ServerTunnelGUI {
     private Random r = new Random();
     private String rateLimitMessage = null;
@@ -121,7 +121,7 @@ public class ServerTunnelGUI {
         SwingUtilities.invokeLater(() -> totalVisitorLabel.setText("總訪客數: " + totalVisitor));
     }
 
-    private void buildFileTreeNodeAsync(File file, javax.swing.tree.DefaultMutableTreeNode parentNode, JTree tree) {
+    private void buildFileTreeNode(File file, javax.swing.tree.DefaultMutableTreeNode parentNode, JTree tree) {
         File[] children = file.listFiles();
         if (children == null) return;
 
@@ -133,24 +133,14 @@ public class ServerTunnelGUI {
 
         for (File child : children) {
             javax.swing.tree.DefaultMutableTreeNode childNode =
-                new javax.swing.tree.DefaultMutableTreeNode(
-                    child.getName().isEmpty() ? child.getAbsolutePath() : child.getName()
-                );
+                new javax.swing.tree.DefaultMutableTreeNode();
             childNode.setUserObject(child);
-
-            // 插入節點並通知 UI 更新
             SwingUtilities.invokeLater(() -> {
                 ((javax.swing.tree.DefaultTreeModel) tree.getModel())
                     .insertNodeInto(childNode, parentNode, parentNode.getChildCount());
             });
-
-            // 遞迴處理子資料夾
-            if (child.isDirectory()) {
-                buildFileTreeNodeAsync(child, childNode, tree);
-            }
         }
     }
-
     private void startMode() {
         javax.swing.tree.DefaultMutableTreeNode root =
                 new javax.swing.tree.DefaultMutableTreeNode(
@@ -160,6 +150,8 @@ public class ServerTunnelGUI {
 
             fileTree = new JTree(root);
             fileTree.setCellRenderer(new javax.swing.tree.DefaultTreeCellRenderer() {
+            	@SuppressWarnings("unused")
+				private FileSystemView fsv = FileSystemView.getFileSystemView();
                 @Override
                 public Component getTreeCellRendererComponent(JTree tree, Object value,
                         boolean sel, boolean expanded, boolean leaf, int row, boolean hasFocus) {
@@ -169,11 +161,14 @@ public class ServerTunnelGUI {
                         if (uo instanceof File) {
                             File f = (File) uo;
                             setText(f.getName().isEmpty() ? f.getAbsolutePath() : f.getName());
+                            //setIcon(fsv.getSystemIcon(f));
+                            //上面那個會變美觀但會卡
                         }
                     }
                     return this;
                 }
             });
+
             fileTree.addTreeSelectionListener(e -> {
                 javax.swing.tree.DefaultMutableTreeNode node =
                     (javax.swing.tree.DefaultMutableTreeNode) fileTree.getLastSelectedPathComponent();
@@ -186,9 +181,47 @@ public class ServerTunnelGUI {
                     fileVisitLabel.setText("「" + selected.getName() + "」被訪問次數: " + count);
                 }
             });
+
             JTree treeRef = fileTree;
-            new Thread(() -> buildFileTreeNodeAsync(new File(path), root, treeRef)).start();
-            
+
+            // 展開時載入孫子
+            fileTree.addTreeExpansionListener(new javax.swing.event.TreeExpansionListener() {
+                @Override
+                public void treeExpanded(javax.swing.event.TreeExpansionEvent event) {
+                    javax.swing.tree.DefaultMutableTreeNode node =
+                        (javax.swing.tree.DefaultMutableTreeNode) event.getPath().getLastPathComponent();
+                    for (int i = 0; i < node.getChildCount(); i++) {
+                        javax.swing.tree.DefaultMutableTreeNode child =
+                            (javax.swing.tree.DefaultMutableTreeNode) node.getChildAt(i);
+                        Object uo = child.getUserObject();
+                        if (uo instanceof File && ((File) uo).isDirectory() && child.getChildCount() == 0) {
+                            File childDir = (File) uo;
+                            new Thread(() -> buildFileTreeNode(childDir, child, treeRef)).start();
+                        }
+                    }
+                }
+
+                @Override
+                public void treeCollapsed(javax.swing.event.TreeExpansionEvent event) {}
+            });
+
+            // 建第一層，完成後預載第二層
+            new Thread(() -> {
+                buildFileTreeNode(new File(path), root, treeRef);
+                try { Thread.sleep(100); } catch (InterruptedException ignored) {}
+                SwingUtilities.invokeLater(() -> {
+                    for (int i = 0; i < root.getChildCount(); i++) {
+                        javax.swing.tree.DefaultMutableTreeNode child =
+                            (javax.swing.tree.DefaultMutableTreeNode) root.getChildAt(i);
+                        Object uo = child.getUserObject();
+                        if (uo instanceof File && ((File) uo).isDirectory()) {
+                            File childDir = (File) uo;
+                            new Thread(() -> buildFileTreeNode(childDir, child, treeRef)).start();
+                        }
+                    }
+                });
+            }).start();
+
         frame.remove(loadPanel);
         frame.add(centerPanel, BorderLayout.CENTER);
         frame.revalidate();
@@ -511,6 +544,7 @@ public class ServerTunnelGUI {
 
             JLabel label = new JLabel(new ImageIcon(qrImage));
             JFrame qrFrame = new JFrame("QRCode for Link");
+            qrFrame.setIconImage(new ImageIcon(originalPath + "\\..\\resource\\logo.png").getImage());
             qrFrame.setSize(350, 380);
             qrFrame.add(label);
             qrFrame.setVisible(true);
@@ -521,6 +555,7 @@ public class ServerTunnelGUI {
 }
 
 class FolderSelector {
+    public static String originalPath;
     public static long getFolderSize(String folderPath) throws IOException {
         AtomicLong total = new AtomicLong(0);
 
@@ -549,10 +584,19 @@ class FolderSelector {
 
     public static void main(String[] args) {
         try {
+            originalPath = new File(
+                    ServerTunnelGUI.class.getProtectionDomain().getCodeSource().getLocation().toURI()
+            ).getParent();
+        } catch (Exception e) {
+            e.printStackTrace();
+            originalPath = "";
+        }
+        try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (Exception ignored) {}
         SwingUtilities.invokeLater(() -> {
             JDialog dialog = new JDialog((Frame) null, "選擇分享資料夾", true);
+            dialog.setIconImage(new ImageIcon(originalPath + "\\..\\resource\\logo.png").getImage());
             dialog.setSize(650, 500);
             dialog.setLocationRelativeTo(null);
             dialog.setLayout(new BorderLayout());
