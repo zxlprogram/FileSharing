@@ -52,7 +52,7 @@ Displays the raw standard output of both the Python server and the Cloudflare tu
 ### UI Mode
 Provides a structured dashboard view:
 - **Left panel** — Shows the total visitor count and a file tree rooted at the shared folder. Selecting any file or folder displays how many times it has been accessed.
-- **Right panel** — Shows the current tunnel connection state (`connecting`, `connected`, or `network error`) as a scrollable text field.
+- **Right panel** — Shows the current tunnel connection state (`connecting`, `connected`,`too much request` or `network error`) as a scrollable text field. it will show the cold-down time when cloudflare got too much request from your IP(maybe 30~40 request)
 
 ## Password Protection
 When password protection is enabled, the server serves a login page to any unauthenticated visitor. A session token is issued via an `HttpOnly` cookie upon successful login. The token remains valid for the duration of the current session and is invalidated when the application is closed.
@@ -67,7 +67,7 @@ To prevent brute-force attempts, each failed login triggers a per-IP cooldown. D
 - Not intended for production or high-traffic use
 
 ## Version
-1.5
+1.5.1
 
 ## Known Issues / Bug Reports
 If you encounter any bugs, please contact: zhoudaniel02@gmail.com
