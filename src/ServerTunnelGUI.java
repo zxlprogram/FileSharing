@@ -161,7 +161,7 @@ public class ServerTunnelGUI {
                         if (uo instanceof File) {
                             File f = (File) uo;
                             setText(f.getName().isEmpty() ? f.getAbsolutePath() : f.getName());
-                            //setIcon(fsv.getSystemIcon(f));
+                            setIcon(fsv.getSystemIcon(f));
                             //上面那個會變美觀但會卡
                         }
                     }
